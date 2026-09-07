@@ -9,21 +9,21 @@ def generate_launch_description():
     map_size_x = LaunchConfiguration('map_size_x_', default=42.0)
     map_size_y = LaunchConfiguration('map_size_y_', default=30.0)
     map_size_z = LaunchConfiguration('map_size_z_', default=5.0)
-    
-    odometry_topic = LaunchConfiguration('odometry_topic', default='odom')
+
+    odometry_topic = LaunchConfiguration('odometry_topic', default='/Odometry')
     camera_pose_topic = LaunchConfiguration('camera_pose_topic', default='camera_pose')
     depth_topic = LaunchConfiguration('depth_topic', default='depth_image')
-    cloud_topic = LaunchConfiguration('cloud_topic', default='cloud')
-    
+    cloud_topic = LaunchConfiguration('cloud_topic', default='/cloud_registered')
+
     cx = LaunchConfiguration('cx', default=321.04638671875)
     cy = LaunchConfiguration('cy', default=243.44969177246094)
     fx = LaunchConfiguration('fx', default=387.229248046875)
     fy = LaunchConfiguration('fy', default=387.229248046875)
-    
-    max_vel = LaunchConfiguration('max_vel', default=2.0)
-    max_acc = LaunchConfiguration('max_acc', default=3.0)
-    planning_horizon = LaunchConfiguration('planning_horizon', default=7.5)
-    
+
+    max_vel = LaunchConfiguration('max_vel', default=0.5)
+    max_acc = LaunchConfiguration('max_acc', default=0.5)
+    planning_horizon = LaunchConfiguration('planning_horizon', default=0.5)
+
     point_num = LaunchConfiguration('point_num', default=1)
     point0_x = LaunchConfiguration('point0_x', default=0.0)
     point0_y = LaunchConfiguration('point0_y', default=0.0)
@@ -41,11 +41,11 @@ def generate_launch_description():
     point4_y = LaunchConfiguration('point4_y', default=30.0)
     point4_z = LaunchConfiguration('point4_z', default=1.0)
 
-    flight_type = LaunchConfiguration('flight_type', default=2)
+    flight_type = LaunchConfiguration('flight_type', default=1)
     use_distinctive_trajs = LaunchConfiguration('use_distinctive_trajs', default=True)
-    
+
     obj_num_set = LaunchConfiguration('obj_num_set', default=10)
-    
+
     drone_id = LaunchConfiguration('drone_id', default=0)
 
     # DeclareLaunchArguments
@@ -63,7 +63,7 @@ def generate_launch_description():
     max_vel_arg = DeclareLaunchArgument('max_vel', default_value=max_vel, description='Maximum velocity')
     max_acc_arg = DeclareLaunchArgument('max_acc', default_value=max_acc, description='Maximum acceleration')
     planning_horizon_arg = DeclareLaunchArgument('planning_horizon', default_value=planning_horizon, description='Planning horizon')
-    
+
     point_num_arg = DeclareLaunchArgument('point_num', default_value=point_num, description='Number of waypoints')
     point0_x_arg = DeclareLaunchArgument('point0_x', default_value=point0_x, description='Waypoint 0 X coordinate')
     point0_y_arg = DeclareLaunchArgument('point0_y', default_value=point0_y, description='Waypoint 0 Y coordinate')
@@ -80,7 +80,7 @@ def generate_launch_description():
     point4_x_arg = DeclareLaunchArgument('point4_x', default_value=point4_x, description='Waypoint 4 X coordinate')
     point4_y_arg = DeclareLaunchArgument('point4_y', default_value=point4_y, description='Waypoint 4 Y coordinate')
     point4_z_arg = DeclareLaunchArgument('point4_z', default_value=point4_z, description='Waypoint 4 Z coordinate')
-    
+
     flight_type_arg = DeclareLaunchArgument('flight_type', default_value=flight_type, description='flight_type')
     use_distinctive_trajs_arg = DeclareLaunchArgument('use_distinctive_trajs', default_value=use_distinctive_trajs, description='Use distinctive trajectories')
     obj_num_set_arg = DeclareLaunchArgument('obj_num_set', default_value=obj_num_set, description='Number of objects')
@@ -93,23 +93,19 @@ def generate_launch_description():
         name=['drone_', drone_id, '_ego_planner_node'],
         output='screen',
         remappings=[
-            ('odom_world', ['drone_', drone_id, '_', odometry_topic]),
-            ('planning/bspline', ['drone_', drone_id, '_planning/bspline']),
-            ('planning/data_display', ['drone_', drone_id, '_planning/data_display']),
-            ('planning/broadcast_bspline_from_planner', '/broadcast_bspline'),
-            ('planning/broadcast_bspline_to_planner', '/broadcast_bspline'),
-            
-            ('goal_point', ['drone_', drone_id, '_plan_vis/goal_point']),
-            ('global_list', ['drone_', drone_id, '_plan_vis/global_list']),
-            ('init_list', ['drone_', drone_id, '_plan_vis/init_list']),
-            ('optimal_list', ['drone_', drone_id, '_plan_vis/optimal_list']),
-            ('a_star_list', ['drone_', drone_id, '_plan_vis/a_star_list']),
-            
-            ('grid_map/odom', ['drone_', drone_id, '_', odometry_topic]),
-            ('grid_map/cloud', ['drone_', drone_id, '_', cloud_topic]),
-            ('grid_map/pose', ['drone_', drone_id, '_', camera_pose_topic]),
-            ('grid_map/depth', ['drone_', drone_id, '_', depth_topic]),
-            ('grid_map/occupancy_inflate', ['drone_', drone_id, '_grid/grid_map/occupancy_inflate'])
+            # 核心：将规划器的定位输入直接指向 FAST-LIO2 的输出
+            ('odom_world', '/Odometry'),
+
+            # 核心：订阅实时避障点云，确保这个话题只由 FAST-LIO 发出
+            ('grid_map/cloud', '/cloud_registered'),
+
+            # 其他话题建议也去掉 drone_id 前缀，方便单机调试
+            ('planning/bspline', '/drone_0_planning/bspline'),
+            ('grid_map/odom', '/Odometry'),
+            ('grid_map/occupancy_inflate', 'grid/grid_map/occupancy_inflate'),
+
+            # 如果你使用 PCT-Planner 发送目标，请确认目标话题
+            ('goal_point', '/goal_pose'),
         ],
         parameters=[
             {'fsm/flight_type': flight_type},
@@ -118,9 +114,9 @@ def generate_launch_description():
             {'fsm/planning_horizon': planning_horizon},
             {'fsm/planning_horizen_time': 3.0},
             {'fsm/emergency_time': 1.0},
-            {'fsm/realworld_experiment': False},
+            {'fsm/realworld_experiment': True},
             {'fsm/fail_safe': True},
-            
+
             {'fsm/waypoint_num': point_num},
             {'fsm/waypoint0_x': point0_x},
             {'fsm/waypoint0_y': point0_y},
@@ -137,7 +133,7 @@ def generate_launch_description():
             {'fsm/waypoint4_x': point4_x},
             {'fsm/waypoint4_y': point4_y},
             {'fsm/waypoint4_z': point4_z},
-            
+
             {'grid_map/resolution': 0.1},
             {'grid_map/map_size_x': map_size_x},
             {'grid_map/map_size_y': map_size_y},
@@ -154,7 +150,7 @@ def generate_launch_description():
             {'grid_map/fx': fx},
             {'grid_map/fy': fy},
             # depth filter
-            {'grid_map/use_depth_filter': True},
+            {'grid_map/use_depth_filter': False},
             {'grid_map/depth_filter_tolerance': 0.15},
             {'grid_map/depth_filter_maxdist': 5.0},
             {'grid_map/depth_filter_mindist': 0.2},
@@ -169,12 +165,12 @@ def generate_launch_description():
             {'grid_map/p_occ': 0.80},
             {'grid_map/min_ray_length': 0.1},
             {'grid_map/max_ray_length': 4.5},
-            
+
             {'grid_map/virtual_ceil_height': 2.9},
             {'grid_map/visualization_truncate_height': 1.8},
             {'grid_map/show_occ_time': False},
             {'grid_map/pose_type': 1},
-            {'grid_map/frame_id': "world"},
+            {'grid_map/frame_id': "camera_init"},
             # planner manager
             {'manager/max_vel': max_vel},
             {'manager/max_acc': max_acc},
@@ -188,7 +184,7 @@ def generate_launch_description():
             {'optimization/lambda_smooth': 1.0},
             {'optimization/lambda_collision': 0.5},
             {'optimization/lambda_feasibility': 0.1},
-            {'optimization/lambda_fitness': 1.0},
+            {'optimization/lambda_fitness': 5.0},
             {'optimization/dist0': 0.5},
             {'optimization/swarm_clearance': 0.5},
             {'optimization/max_vel': max_vel},
@@ -224,7 +220,7 @@ def generate_launch_description():
     ld.add_action(max_vel_arg)
     ld.add_action(max_acc_arg)
     ld.add_action(planning_horizon_arg)
-    
+
     ld.add_action(point_num_arg)
     ld.add_action(point0_x_arg)
     ld.add_action(point0_y_arg)
@@ -241,7 +237,7 @@ def generate_launch_description():
     ld.add_action(point4_x_arg)
     ld.add_action(point4_y_arg)
     ld.add_action(point4_z_arg)
-    
+
     ld.add_action(flight_type_arg)
     ld.add_action(use_distinctive_trajs_arg)
     ld.add_action(obj_num_set_arg)

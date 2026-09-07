@@ -6,21 +6,22 @@
 
 using namespace ego_planner;
 
+// ego_planner_node.cpp
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<rclcpp::Node>("ego_planner_node");
 
   EGOReplanFSM rebo_replan;
-
   rebo_replan.init(node);
 
-  rclcpp::spin(node);
-  rclcpp::shutdown();
+  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  executor->add_node(node);
+  executor->spin();
 
+  rclcpp::shutdown();
   return 0;
 }
-
 // #include <ros/ros.h>
 // #include <csignal>
 // #include <visualization_msgs/Marker.h>

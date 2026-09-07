@@ -18,7 +18,7 @@ def generate_launch_description():
     target_y = LaunchConfiguration('target_y', default=20.0)
     target_z = LaunchConfiguration('target_z', default=1.0)
     drone_id = LaunchConfiguration('drone_id', default=0)
-    odom_topic = LaunchConfiguration('odom_topic', default='visual_slam/odom')
+    odom_topic = LaunchConfiguration('odom_topic', default='/Odometry')
     obj_num = LaunchConfiguration('obj_num', default=10)
 
     # DeclareLaunchArgument definitions
@@ -51,16 +51,16 @@ def generate_launch_description():
             'obj_num_set': obj_num,
             'camera_pose_topic': 'pcl_render_node/camera_pose',
             'depth_topic': 'pcl_render_node/depth',
-            'cloud_topic': 'pcl_render_node/cloud',
+            'cloud_topic': '/cloud_registered',
             'cx': str(321.04638671875),
             'cy': str(243.44969177246094),
             'fx': str(387.229248046875),
             'fy': str(387.229248046875),
-            'max_vel': str(2.0),
-            'max_acc': str(3.0),
-            'planning_horizon': str(7.5),
+            'max_vel': str(0.5),
+            'max_acc': str(0.5),
+            'planning_horizon': str(0.5),
             'use_distinctive_trajs': 'True',
-            'flight_type': str(2),
+            'flight_type': str(1),
             'point_num': str(1),
             'point0_x': target_x,
             'point0_y': target_y,
@@ -91,8 +91,8 @@ def generate_launch_description():
         name=['drone_', drone_id, '_traj_server'],
         output='screen',
         remappings=[
-            ('position_cmd', ['drone_', drone_id, '_planning/pos_cmd']),
-            ('planning/bspline', ['drone_', drone_id, '_planning/bspline'])
+            ('planning/pos_cmd', '/drone_0_planning/pos_cmd'),
+            ('planning/bspline', '/drone_0_planning/bspline')
         ],
         parameters=[
             {'traj_server/time_forward': 1.0}
@@ -159,7 +159,7 @@ def generate_launch_description():
     # Add nodes and includes
     ld.add_action(advanced_param_include)
     ld.add_action(traj_server_node)
-    ld.add_action(simulator_include)
+    #ld.add_action(simulator_include)
     # ld.add_action(obj_generator_node)    
 
     return ld

@@ -22,6 +22,7 @@ namespace ego_planner
     node_->declare_parameter("fsm/emergency_time", 1.0);
     node_->declare_parameter("fsm/realworld_experiment", false);
     node_->declare_parameter("fsm/fail_safe", true);
+    node_->declare_parameter("fsm/replan_from_odometry", false);
 
     node_->get_parameter("fsm/flight_type", target_type_);
     node_->get_parameter("fsm/thresh_replan_time", replan_thresh_);
@@ -31,6 +32,7 @@ namespace ego_planner
     node_->get_parameter("fsm/emergency_time", emergency_time_);
     node_->get_parameter("fsm/realworld_experiment", flag_realworld_experiment_);
     node_->get_parameter("fsm/fail_safe", enable_fail_safe_);
+    node_->get_parameter("fsm/replan_from_odometry", replan_from_odometry_);
 
     have_trigger_ = !flag_realworld_experiment_;
 
@@ -207,15 +209,12 @@ namespace ego_planner
       /*** FSM状态转换 ***/
       if (exec_state_ == WAIT_TARGET)
         changeFSMExecState(GEN_NEW_TRAJ, "TRIG");
-      else
-      {
-        while (exec_state_ != EXEC_TRAJ)
-        {
-          rclcpp::spin_some(node_);
-          std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+      else if (exec_state_ == EXEC_TRAJ)
         changeFSMExecState(REPLAN_TRAJ, "TRIG");
-      }
+      // INIT/GEN_NEW_TRAJ/REPLAN_TRAJ safely consume the latest cached
+      // global trajectory on their next timer tick. Never spin the same node
+      // recursively from a subscription callback: ROS 2 rejects adding one
+      // node to two executors and the original code terminated the process.
 
       visualization_->displayGlobalPathList(gloabl_traj, 0.1, 0);
     }
@@ -662,6 +661,27 @@ namespace ego_planner
 
   bool EGOReplanFSM::planFromCurrentTraj(const int trial_times /*=1*/)
   {
+
+    // A ground robot may not execute the previously published trajectory
+    // exactly (or at all when running planning-only simulation). In that
+    // mode, always anchor replanning to measured odometry instead of the
+    // time-progressed point on the old B-spline.
+    if (replan_from_odometry_)
+    {
+      start_pt_ = odom_pos_;
+      start_vel_ = odom_vel_;
+      start_acc_.setZero();
+
+      if (callReboundReplan(true, false))
+        return true;
+
+      for (int i = 0; i < trial_times; ++i)
+      {
+        if (callReboundReplan(true, true))
+          return true;
+      }
+      return false;
+    }
 
     LocalTrajData *info = &planner_manager_->local_data_;
     // ros::Time time_now = ros::Time::now();
